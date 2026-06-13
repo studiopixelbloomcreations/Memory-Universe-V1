@@ -1096,16 +1096,19 @@
             camera: null,
             renderer: null,
             composer: null,
-            clock: new THREE.Clock(),
+            clock: null,
             spotLight: null,
             ambientLight: null,
             pointLights: [],
             cameraDriftX: 0,
             cameraDriftY: 0,
-            targetLookAt: new THREE.Vector3(0, 0, 0),
-            currentLookAt: new THREE.Vector3(0, 0, 0),
+            targetLookAt: null,
+            currentLookAt: null,
 
             init(containerId) {
+                this.clock = new THREE.Clock();
+                this.targetLookAt = new THREE.Vector3(0, 0, 0);
+                this.currentLookAt = new THREE.Vector3(0, 0, 0);
                 const container = document.getElementById(containerId);
                 this.scene = new THREE.Scene();
                 this.scene.fog = new THREE.FogExp2(0x050810, 0.012);
@@ -2647,12 +2650,16 @@
             currentMode: 'STUDIO',
 
             async init() {
-                await StorageEngine.init();
-                await ControlStudio.init();
+                try {
+                    await StorageEngine.init();
+                    await ControlStudio.init();
 
-                const audioData = await StorageEngine.getAudio();
-                if (audioData) {
-                    AudioEngine.loadMusic(audioData.blob);
+                    const audioData = await StorageEngine.getAudio();
+                    if (audioData) {
+                        AudioEngine.loadMusic(audioData.blob);
+                    }
+                } catch (err) {
+                    console.error('Init error:', err);
                 }
 
                 // Keyboard events — ignore when typing in inputs
@@ -2674,17 +2681,12 @@
                     this.transitionTo('STUDIO');
                 });
 
-                // Auto route mode on startup
-                if (ControlStudio.photos.length > 0) {
-                    this.transitionTo('VIEWER');
-                } else {
-                    // Already showing studio, just make sure overlay is clear
-                    const fade = document.getElementById('fade-overlay');
-                    fade.style.opacity = '0';
-                    fade.style.pointerEvents = 'none';
-                    document.getElementById('studio-container').style.display = 'flex';
-                    document.getElementById('viewer-container').style.display = 'none';
-                }
+                // Always show studio on startup
+                const fade = document.getElementById('fade-overlay');
+                fade.style.opacity = '0';
+                fade.style.pointerEvents = 'none';
+                document.getElementById('studio-container').style.display = 'flex';
+                document.getElementById('viewer-container').style.display = 'none';
             },
 
             async transitionTo(mode) {
@@ -2779,9 +2781,22 @@
             }
         };
 
+        // Global safety net: if anything crashes, make sure the studio is visible and clickable
+        window.addEventListener('error', () => {
+            const fade = document.getElementById('fade-overlay');
+            if (fade) { fade.style.opacity = '0'; fade.style.pointerEvents = 'none'; }
+            const studio = document.getElementById('studio-container');
+            if (studio) studio.style.display = 'flex';
+        });
+
         // Launch App
         window.addEventListener('DOMContentLoaded', () => {
-            AppController.init();
+            AppController.init().catch(err => {
+                console.error('AppController.init crashed:', err);
+                const fade = document.getElementById('fade-overlay');
+                if (fade) { fade.style.opacity = '0'; fade.style.pointerEvents = 'none'; }
+                document.getElementById('studio-container').style.display = 'flex';
+            });
         });
     </script>
 </body>
