@@ -6,7 +6,8 @@
     <title>Memory Universe — A Cinematic Tribute</title>
 
     <!-- Three.js core -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
     <!-- Three.js addons (post-processing) -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/postprocessing/EffectComposer.js"></script>
@@ -2696,42 +2697,54 @@
                 // Fade to Black
                 await gsap.to(fade, { opacity: 1, duration: 0.6, ease: 'power2.inOut' });
 
-                if (mode === 'VIEWER') {
-                    document.getElementById('studio-container').style.display = 'none';
-                    document.getElementById('viewer-container').style.display = 'block';
-                    this.currentMode = 'VIEWER';
+                try {
+                    if (mode === 'VIEWER') {
+                        // Check THREE is available
+                        if (typeof THREE === 'undefined') throw new Error('Three.js not loaded');
 
-                    // Initialize Three.js scene
-                    SceneEngine.init('viewer-container');
-                    ParticleSystem.init(SceneEngine.scene, ControlStudio.config.particleDensity);
+                        document.getElementById('studio-container').style.display = 'none';
+                        document.getElementById('viewer-container').style.display = 'block';
+                        this.currentMode = 'VIEWER';
 
-                    // Load active playlist (either actual or demo placeholders)
-                    let playPhotos = ControlStudio.photos;
-                    if (playPhotos.length === 0) {
-                        document.getElementById('demo-banner').style.display = 'block';
-                        playPhotos = await this.getDemoPhotos();
+                        // Initialize Three.js scene
+                        SceneEngine.init('viewer-container');
+                        ParticleSystem.init(SceneEngine.scene, ControlStudio.config.particleDensity);
+
+                        // Load active playlist (either actual or demo placeholders)
+                        let playPhotos = ControlStudio.photos;
+                        if (playPhotos.length === 0) {
+                            document.getElementById('demo-banner').style.display = 'block';
+                            playPhotos = await this.getDemoPhotos();
+                        } else {
+                            document.getElementById('demo-banner').style.display = 'none';
+                        }
+
+                        // Audio Trigger
+                        AudioEngine.enable();
+                        if (ControlStudio.config.audioEnabled !== false) {
+                            AudioEngine.startMusic(ControlStudio.config.audioVolume);
+                        }
+
+                        NarrativeEngine.start(playPhotos, ControlStudio.config);
+
                     } else {
-                        document.getElementById('demo-banner').style.display = 'none';
+                        document.getElementById('viewer-container').style.display = 'none';
+                        document.getElementById('studio-container').style.display = 'flex';
+                        this.currentMode = 'STUDIO';
+
+                        // Destroy/clean Viewer Engine
+                        NarrativeEngine.stop();
+                        CelebrationEngine.stop();
+                        AudioEngine.stopMusic();
+                        SceneEngine.destroy();
                     }
-
-                    // Audio Trigger
-                    AudioEngine.enable();
-                    if (ControlStudio.config.audioEnabled !== false) {
-                        AudioEngine.startMusic(ControlStudio.config.audioVolume);
-                    }
-
-                    NarrativeEngine.start(playPhotos, ControlStudio.config);
-
-                } else {
+                } catch (err) {
+                    console.error('Transition error:', err);
+                    // Recovery: always show studio
                     document.getElementById('viewer-container').style.display = 'none';
                     document.getElementById('studio-container').style.display = 'flex';
                     this.currentMode = 'STUDIO';
-
-                    // Destroy/clean Viewer Engine
-                    NarrativeEngine.stop();
-                    CelebrationEngine.stop();
-                    AudioEngine.stopMusic();
-                    SceneEngine.destroy();
+                    Toast.show('Failed to launch viewer: ' + err.message, 'error');
                 }
 
                 // Fade from Black
